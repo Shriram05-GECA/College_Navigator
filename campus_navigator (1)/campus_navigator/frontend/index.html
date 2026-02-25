@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Navigator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="/frontend/style.css">
+</head>
+<body>
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<div class="sidebar" id="sidebar">
+
+    <div class="sidebar-header">
+        <div class="logo">
+            <div class="logo-icon">&#9672;</div>
+            <div>
+                <div class="logo-title">CampusNav</div>
+                <div class="logo-sub">Smart Campus Navigator</div>
+            </div>
+        </div>
+        <button class="editor-toggle-btn" id="editorToggleBtn" onclick="toggleEditor()">&#128295; Edit Map</button>
+    </div>
+
+    <!-- Search -->
+    <div class="search-wrapper">
+        <div class="search-icon">&#9901;</div>
+        <input type="text" id="searchBox" class="search-input" placeholder="Search location...">
+        <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <!-- Route Planner -->
+    <div class="route-card">
+        <div class="route-card-title"><span class="route-icon">&#8674;</span> Route Planner</div>
+        <div class="node-select-group">
+            <div class="node-dot start-dot"></div>
+            <select id="startNode" class="node-select"><option value="">Select starting point</option></select>
+        </div>
+        <div class="route-divider"><div class="divider-line"></div></div>
+        <div class="node-select-group">
+            <div class="node-dot end-dot"></div>
+            <select id="endNode" class="node-select"><option value="">Select destination</option></select>
+        </div>
+        <button class="find-btn" onclick="findPath()">
+            <span>Find Shortest Path</span><span class="btn-arrow">&#8594;</span>
+        </button>
+        <button class="clear-btn" onclick="clearPath()">Clear Route</button>
+    </div>
+
+    <!-- Route Info -->
+    <div class="route-info" id="routeInfo" style="display:none">
+        <div class="route-stats">
+            <div class="stat"><div class="stat-value" id="distanceStat">--</div><div class="stat-label">Distance</div></div>
+            <div class="stat-divider"></div>
+            <div class="stat"><div class="stat-value" id="timeStat">--</div><div class="stat-label">Walk Time</div></div>
+            <div class="stat-divider"></div>
+            <div class="stat"><div class="stat-value" id="stopsStat">--</div><div class="stat-label">Stops</div></div>
+        </div>
+        <div class="directions-title">Turn-by-Turn Directions</div>
+        <div class="directions-list" id="directionsList"></div>
+    </div>
+
+    <!-- ══ EDITOR PANEL ══ -->
+    <div class="editor-panel" id="editorPanel" style="display:none">
+
+        <div class="editor-panel-title">&#128295; Map Editor</div>
+
+        <!-- Place nodes -->
+        <div class="editor-section-label">PLACE NODES</div>
+        <div class="editor-mode-btns">
+            <button class="editor-mode-btn active" id="mode_waypoint" onclick="setEditorMode('waypoint')">
+                <span class="mode-icon">&#11046;</span>
+                <div><div class="mode-name">Waypoint</div><div class="mode-sub">Invisible junction</div></div>
+            </button>
+            <button class="editor-mode-btn" id="mode_named" onclick="setEditorMode('named')">
+                <span class="mode-icon">&#128205;</span>
+                <div><div class="mode-name">Named Node</div><div class="mode-sub">Visible location</div></div>
+            </button>
+        </div>
+
+        <!-- Edit connections -->
+        <div class="editor-section-label">CONNECTIONS</div>
+        <div class="editor-mode-btns">
+            <button class="editor-mode-btn" id="mode_edge" onclick="setEditorMode('edge')">
+                <span class="mode-icon">&#8596;</span>
+                <div><div class="mode-name">Add Edge</div><div class="mode-sub">Click 2 nodes</div></div>
+            </button>
+            <button class="editor-mode-btn" id="mode_del_edge" onclick="setEditorMode('del_edge')">
+                <span class="mode-icon">&#10006;</span>
+                <div><div class="mode-name">Remove Edge</div><div class="mode-sub">Click 2 nodes</div></div>
+            </button>
+        </div>
+
+        <!-- Delete -->
+        <div class="editor-section-label">REMOVE</div>
+        <button class="editor-mode-btn full-width" id="mode_del_node" onclick="setEditorMode('del_node')">
+            <span class="mode-icon">&#128465;</span>
+            <div><div class="mode-name">Delete Node</div><div class="mode-sub">Removes node + all its edges</div></div>
+        </button>
+
+        <!-- Hint -->
+        <div class="editor-hint" id="editorHint">Click anywhere on a road to drop an invisible waypoint</div>
+
+        <!-- Waypoint visibility -->
+        <div class="visibility-row">
+            <span class="vis-label">&#11046; Show waypoints</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="waypointToggle" checked
+                       onchange="setWaypointVisibility(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+
+        <!-- Live stats -->
+        <div class="editor-stats">
+            <div class="estat"><span id="nodeCount">0</span><div>named</div></div>
+            <div class="estat-div"></div>
+            <div class="estat"><span id="wpCount">0</span><div>waypoints</div></div>
+            <div class="estat-div"></div>
+            <div class="estat"><span id="edgeCount">0</span><div>edges</div></div>
+        </div>
+
+        <!-- Undo + Save -->
+        <div class="editor-actions">
+            <button class="undo-btn" id="undoBtn" onclick="undoAction()" disabled>&#8629; Undo (0)</button>
+        </div>
+        <div class="save-row">
+            <button class="save-btn" id="saveBtn" onclick="saveGraph()">&#128190; Save Graph</button>
+            <button class="download-btn" onclick="downloadGraph()">&#8659; JSON</button>
+        </div>
+
+        <div class="editor-shortcut-hint">Tip: <kbd>Ctrl+Z</kbd> undo &nbsp;|&nbsp; <kbd>Esc</kbd> cancel edge</div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-title">Location Types</div>
+        <div class="legend-items">
+            <div class="legend-item"><span class="legend-dot" style="background:#4ade80"></span>Academic</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span>Admin</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span>Food</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>Sports</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#f43f5e"></span>Entrance</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span>Events</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#f0abfc"></span>Waypoint</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span>Other</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- mobile sidebar toggle -->
+<button class="toggle-sidebar" id="toggleSidebar" onclick="toggleSidebar()">&#9776;</button>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- Location Preview Card -->
+<div class="location-preview" id="locationPreview">
+    <button class="preview-close" onclick="closePreview()">&#10005;</button>
+    <div class="preview-image-wrap">
+        <img class="preview-image" id="previewImage" src="" alt="">
+        <div class="preview-type-badge" id="previewBadge">location</div>
+    </div>
+    <div class="preview-content">
+        <div class="preview-name" id="previewName">Location Name</div>
+        <div class="preview-desc" id="previewDesc"></div>
+        <div class="preview-meta">
+            <div class="preview-hours">
+                <span class="meta-icon">&#9719;</span>
+                <span id="previewHours">--</span>
+            </div>
+        </div>
+        <div class="preview-facilities" id="previewFacilities"></div>
+        <div class="preview-actions">
+            <button class="preview-btn set-start" onclick="setAsStart()">Set as Start</button>
+            <button class="preview-btn set-end"   onclick="setAsEnd()">Set as End</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="/frontend/script.js"></script>
+</body>
+</html>
